@@ -22,7 +22,20 @@ final class TrailStore: ObservableObject {
         if let data = try? Data(contentsOf: fileURL), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             trails = saved.trails
             sourceName = saved.sourceName
+        } else {
+            loadBuiltIn()
         }
+    }
+
+    static let builtInName = "Built-in Hatfield-McCoy trails"
+
+    /// Trails that ship with the app (App/Resources/hmt-trails.json), used until a file is imported.
+    private func loadBuiltIn() {
+        guard let url = Bundle.main.url(forResource: "hmt-trails", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let builtIn = try? JSONDecoder().decode([TrailLine].self, from: data) else { return }
+        trails = builtIn
+        sourceName = Self.builtInName
     }
 
     /// Replaces the current trails with the ones in this file.
@@ -41,11 +54,15 @@ final class TrailStore: ObservableObject {
         }
     }
 
+    /// Removes an imported file and goes back to the built-in trails, if the app has them.
     func removeAll() {
         trails = []
         sourceName = nil
         try? FileManager.default.removeItem(at: fileURL)
+        loadBuiltIn()
     }
+
+    var isBuiltIn: Bool { sourceName == Self.builtInName }
 
     var boundingRegion: MKCoordinateRegion? {
         let points = trails.flatMap { $0.segments.flatMap { $0 } }

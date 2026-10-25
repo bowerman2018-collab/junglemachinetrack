@@ -56,12 +56,13 @@ final class TileCache {
             .appendingPathComponent("\(key.y)")
     }
 
+    /// True if the tile is on the phone, either downloaded or built into the app.
     func has(_ source: TileSource, _ key: TileKey) -> Bool {
-        FileManager.default.fileExists(atPath: fileURL(source, key).path)
+        FileManager.default.fileExists(atPath: fileURL(source, key).path) || BundledTiles.shared.data(source, key) != nil
     }
 
     func data(_ source: TileSource, _ key: TileKey) -> Data? {
-        try? Data(contentsOf: fileURL(source, key))
+        (try? Data(contentsOf: fileURL(source, key))) ?? BundledTiles.shared.data(source, key)
     }
 
     func store(_ data: Data, _ source: TileSource, _ key: TileKey) {

@@ -82,19 +82,19 @@ final class TileDownloader: ObservableObject {
     }
 
     /// Queues every Hatfield-McCoy trail system, one job per map style.
-    func downloadTrailSystems(_ systems: [TrailSystem], sources: [TileSource], maxZoom: Int) {
+    func downloadTrailSystems(_ systems: [TrailSystem], sources: [TileSource], minZoom: Int = 10, maxZoom: Int) {
         for source in sources {
             enqueue(Job(name: "Hatfield-McCoy · \(source.name)",
                         areas: systems.map { (name: "\($0.name) trails", region: $0.region) },
-                        zooms: 10...min(maxZoom, source.maxZoom), source: source))
+                        zooms: min(minZoom, source.maxZoom)...min(maxZoom, source.maxZoom), source: source))
         }
     }
 
     /// Tiles a set of trail-system downloads would fetch, before skipping ones already on the phone.
-    static func tileCount(_ systems: [TrailSystem], sources: [TileSource], maxZoom: Int) -> Int {
+    static func tileCount(_ systems: [TrailSystem], sources: [TileSource], minZoom: Int = 10, maxZoom: Int) -> Int {
         sources.reduce(0) { total, source in
             total + Job(name: "", areas: systems.map { (name: $0.name, region: $0.region) },
-                        zooms: 10...min(maxZoom, source.maxZoom), source: source).keys.count
+                        zooms: min(minZoom, source.maxZoom)...min(maxZoom, source.maxZoom), source: source).keys.count
         }
     }
 

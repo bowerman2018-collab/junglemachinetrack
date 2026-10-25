@@ -17,6 +17,9 @@ targets:
     platform: iOS
     sources:
       - App
+      - path: BundledMaps
+        optional: true
+        buildPhase: resources
     dependencies:
       - package: APRSCore
     scheme: {}
