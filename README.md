@@ -28,6 +28,27 @@ You sign it with your own free Apple ID using **AltStore**:
 phone on the same Wi-Fi as the Mac running AltServer. Do it the night before the trip and
 you're covered for up to a week. Refreshing needs internet, so it can't be done on the trail.
 
+## On your Windows computer
+
+There's also a computer version with the same map, riders, offline maps, trail lines and navigation.
+It runs in Microsoft Edge (or Chrome) and installs like a normal app:
+
+1. Open **https://bowerman2018-collab.github.io/junglemachinetrack/** in Edge.
+2. Click the **Install** icon at the right end of the address bar (a little screen with a +), then **Install**.
+   Trail Tracker now has its own window, a Start menu entry and a taskbar icon.
+3. **Maps tab → Maps where I live:** type your town or ZIP, pick how far around it, and click **Download my area**.
+   **Download all 13 trail systems** saves the Hatfield-McCoy maps the same way.
+4. **Maps tab → Trail lines → Import trail map…** and pick the Hatfield-McCoy KMZ (or the .zip it came in).
+5. **Radio tab → Demo riders** to try it without radios.
+
+Once maps are saved it works with no internet. Turn off **Use internet for maps** and it makes no connections at all.
+Saved maps and settings stay in Edge on that computer; nothing is uploaded.
+
+Radio: **Bluetooth…** connects to the radio over Bluetooth (Edge/Chrome), and **COM port…** reads a radio or TNC that
+Windows shows as a COM port. Like the iPhone app, it shows what the radio sends in the raw log until the H9's format is confirmed.
+
+Code: `web/` (no build step). Checks: `node web/test/check.mjs`. Published by `.github/workflows/web.yml`.
+
 ## Radio setup (both radios)
 
 1. **Same APRS frequency on every radio.** Pick a quiet simplex frequency instead of 144.390 so internet gateways don't pick up your beacons and post them publicly.
@@ -52,5 +73,6 @@ and the decoder can be adjusted to match.
 - `App/`: the SwiftUI app (Bluetooth, maps, screens).
 - `project.yml`: the Xcode project definition for [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 - `.github/workflows/build.yml`: the cloud build.
+- `web/`: the computer version (published to GitHub Pages by `.github/workflows/web.yml`).
 
 Maps: USGS The National Map (public domain).
