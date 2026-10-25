@@ -85,6 +85,15 @@ for el in data.get("elements", []):
         continue
     seen.add(el["id"])
     tags = el.get("tags", {})
+    name = tags.get("name", "")
+    # Some Hatfield-McCoy trails are also in OpenStreetMap as tracks ("BW-#10-EASY", "Rockhouse Trail 45").
+    # The official trail map already has those, so leave them out rather than list them twice.
+    if "#" in name or re.search(r"\btrail\s*\d", name, re.I) or tags.get("highway") == "track" and not tags.get("ref"):
+        continue
+    if set(name) <= set("? "):
+        tags.pop("name", None)
+        if not tags.get("ref"):
+            continue
     pts = simplify([(g["lon"], g["lat"]) for g in el["geometry"]])
     if len(pts) < 2:
         continue
