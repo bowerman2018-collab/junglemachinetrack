@@ -1,4 +1,4 @@
-name: Fetch demo tiles
+name: Fetch OSM trail data
 on:
   push:
     branches: [demo-tiles]
@@ -9,30 +9,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Download a small patch of USGS topo and imagery tiles around Gilbert, WV
+      - name: Query OpenStreetMap (Overpass) for Hatfield-McCoy trails
         run: |
+          mkdir -p osm
+          Q='[out:json][timeout:180];
+          (
+            relation["route"]["name"~"Hatfield",i](37.15,-82.6,38.5,-81.1);
+            relation["operator"~"Hatfield",i](37.15,-82.6,38.5,-81.1);
+            way["operator"~"Hatfield",i](37.15,-82.6,38.5,-81.1);
+            way["name"~"Hatfield|HMT",i]["highway"](37.15,-82.6,38.5,-81.1);
+            way["atv"="designated"](37.15,-82.6,38.5,-81.1);
+          );
+          out tags geom;'
+          for host in overpass-api.de overpass.kumi.systems; do
+            curl -sS --fail -m 300 -A "TrailTracker" --data-urlencode "data=$Q" "https://$host/api/interpreter" -o osm/hmt.json && break
+          done
+          ls -la osm
           python3 - <<'PY'
-          import math, os, urllib.request
-          def tx(lon,z): return int((lon+180)/360*2**z)
-          def ty(lat,z):
-              r=math.radians(lat); return int((1-math.log(math.tan(r)+1/math.cos(r))/math.pi)/2*2**z)
-          box=(37.585,37.645,-81.905,-81.825)
-          srcs={"topo":"USGSTopo","sat":"USGSImageryTopo"}
-          for name,svc in srcs.items():
-              for z in (12,13,14,15):
-                  for x in range(tx(box[2],z),tx(box[3],z)+1):
-                      for y in range(ty(box[1],z),ty(box[0],z)+1):
-                          url=f"https://basemap.nationalmap.gov/arcgis/rest/services/{svc}/MapServer/tile/{z}/{y}/{x}"
-                          p=f"demo-tiles/{name}/{z}/{x}/{y}"
-                          os.makedirs(os.path.dirname(p),exist_ok=True)
-                          req=urllib.request.Request(url,headers={"User-Agent":"TrailTracker demo"})
-                          open(p,"wb").write(urllib.request.urlopen(req,timeout=30).read())
+          import json, collections
+          d=json.load(open("osm/hmt.json"))
+          els=d["elements"]
+          c=collections.Counter(e["type"] for e in els); print(c)
+          keys=collections.Counter(k for e in els for k in e.get("tags",{}))
+          print(keys.most_common(40))
+          for e in els[:40]: print(e["type"], e.get("tags"))
           PY
-          du -sh demo-tiles
-      - name: Commit tiles
+      - name: Commit
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add demo-tiles
-          git commit -m "Demo tiles"
+          git add osm
+          git commit -m "OSM trail data"
           git push
