@@ -34,6 +34,16 @@ jobs:
             || { grep -v "^$" check.log | head -30 | sed 's/^/::error::/'; exit 1; }
           cat check.log
 
+      - name: Restore built-in maps
+        uses: actions/cache@v4
+        with:
+          path: BundledMaps
+          key: maps-v1-${{ hashFiles('App/Maps/TrailSystems.swift', 'scripts/build_map_bundle.py') }}
+          restore-keys: maps-v1-
+
+      - name: Build built-in maps (USGS topo + satellite for every trail system)
+        run: python3 scripts/build_map_bundle.py 15
+
       - name: Generate Xcode project
         run: |
           brew install xcodegen

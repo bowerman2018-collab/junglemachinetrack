@@ -17,6 +17,8 @@ struct OfflineMapsScreen: View {
     @State private var hmTopo = true
     @State private var hmSatellite = true
     @State private var hmMaxZoom = 15
+    /// Maps for every trail system up to zoom 15 ship inside the app; downloads only add zoom 16.
+    private let builtIn = BundledTiles.shared.isAvailable
 
     var body: some View {
         NavigationStack {
@@ -50,15 +52,22 @@ struct OfflineMapsScreen: View {
                 }
 
                 Section {
+                    if builtIn {
+                        Label("Topo and satellite maps for all \(TrailSystem.hatfieldMcCoy.count) trail systems are built into the app", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
                     Toggle("Topo map", isOn: $hmTopo)
                     Toggle("Satellite map", isOn: $hmSatellite)
-                    Picker("Detail", selection: $hmMaxZoom) {
-                        Text("Standard (zoom 15)").tag(15)
-                        Text("Most detail (zoom 16)").tag(16)
+                    if !builtIn {
+                        Picker("Detail", selection: $hmMaxZoom) {
+                            Text("Standard (zoom 15)").tag(15)
+                            Text("Most detail (zoom 16)").tag(16)
+                        }
                     }
                     LabeledContent("Size", value: hmEstimate)
-                    Button("Download all \(TrailSystem.hatfieldMcCoy.count) trail systems") {
-                        downloader.downloadTrailSystems(TrailSystem.hatfieldMcCoy, sources: hmSources, maxZoom: hmMaxZoom)
+                    Button(builtIn ? "Download extra detail (optional)" : "Download all \(TrailSystem.hatfieldMcCoy.count) trail systems") {
+                        downloader.downloadTrailSystems(TrailSystem.hatfieldMcCoy, sources: hmSources,
+                                                        minZoom: builtIn ? 16 : 10, maxZoom: builtIn ? 16 : hmMaxZoom)
                     }
                     .disabled(hmSources.isEmpty || !settings.useInternetForMaps)
                     DisclosureGroup("Trail systems included") {
@@ -76,7 +85,9 @@ struct OfflineMapsScreen: View {
                 } header: {
                     Text("Hatfield-McCoy trails")
                 } footer: {
-                    Text("Covers every trail in each system plus about 2 miles around it. Do this on Wi-Fi at home; it takes a while. Tap a trail system to see it on the Map tab.")
+                    Text(builtIn
+                         ? "Covers every trail in each system plus about 2 miles around it, ready to use offline. The optional extra-detail download adds the closest zoom level; do it on Wi-Fi. Tap a trail system to see it on the Map tab."
+                         : "Covers every trail in each system plus about 2 miles around it. Do this on Wi-Fi at home; it takes a while. Tap a trail system to see it on the Map tab.")
                 }
 
                 Section {
@@ -88,9 +99,9 @@ struct OfflineMapsScreen: View {
                             if let r = trails.boundingRegion { mapState.pendingRegion = r }
                         }
                     }
-                    Button(trails.sourceName == nil ? "Import trail map…" : "Replace trail map…") { importing = true }
-                    if trails.sourceName != nil {
-                        Button("Remove trail map", role: .destructive) { trails.removeAll() }
+                    Button(trails.sourceName == nil ? "Import trail map…" : trails.isBuiltIn ? "Import a newer trail map…" : "Replace trail map…") { importing = true }
+                    if trails.sourceName != nil && !trails.isBuiltIn {
+                        Button("Remove imported trail map", role: .destructive) { trails.removeAll() }
                     }
                     if let error = trails.lastError {
                         Text(error).font(.caption).foregroundStyle(.red)
@@ -168,7 +179,8 @@ struct OfflineMapsScreen: View {
         var bytes: Int64 = 0
         var tiles = 0
         for source in hmSources {
-            let n = TileDownloader.tileCount(TrailSystem.hatfieldMcCoy, sources: [source], maxZoom: hmMaxZoom)
+            let n = TileDownloader.tileCount(TrailSystem.hatfieldMcCoy, sources: [source],
+                                             minZoom: builtIn ? 16 : 10, maxZoom: builtIn ? 16 : hmMaxZoom)
             tiles += n
             // Satellite tiles are photos and run roughly twice the size of topo tiles.
             bytes += Int64(n * (source == .usgsImagery ? 2 : 1) * TileDownloader.averageTileBytes)
