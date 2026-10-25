@@ -34,8 +34,9 @@ final class APRSParserTests: XCTestCase {
     }
 
     func testMicE() throws {
-        // Example from the APRS 1.01 spec: 33 25.64N, 112 07.74W, 20 knots, course 251, jeep symbol.
-        let packet = APRSPacket(source: "N0CALL", destination: "S32U6T", info: "`(_fn\"Oj/")
+        // 33 25.64N, 112 07.74W, 20 knots, course 251, jeep symbol.
+        // Destination "S32UVT": digits 3,3,2,5,6,4; 4th char U = north, 5th char V = +100 longitude, 6th char T = west.
+        let packet = APRSPacket(source: "N0CALL", destination: "S32UVT", info: "`(_fn\"Oj/")
         let p = try XCTUnwrap(APRSParser.parse(packet)).position
         XCTAssertEqual(p.latitude, 33 + 25.64 / 60, accuracy: 1e-5)
         XCTAssertEqual(p.longitude, -(112 + 7.74 / 60), accuracy: 1e-5)
