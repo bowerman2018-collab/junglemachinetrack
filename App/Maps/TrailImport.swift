@@ -51,7 +51,7 @@ enum TrailImporter {
 
     /// Picks the text to print on the map: a trail-number field if the file has one, else the name.
     static func label(name: String, details: [String: String]) -> String {
-        let numberKeys = ["trail_num", "trailnum", "trail_no", "trailno", "trail_number", "trailnumber",
+        let numberKeys = ["trail_numb", "trail_num", "trailnum", "trail_no", "trailno", "trail_number", "trailnumber",
                           "number", "num", "ref", "trail_id", "trailid", "trail"]
         for key in numberKeys {
             if let value = details.first(where: { $0.key.lowercased() == key })?.value
@@ -59,16 +59,33 @@ enum TrailImporter {
                 return value
             }
         }
-        return name
+        return name.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// A readable name, e.g. "Bearwallow 73" or the trail's own name when it has one.
+    static func title(name: String, label: String, details: [String: String]) -> String {
+        func field(_ keys: [String]) -> String? {
+            for key in keys {
+                if let v = details.first(where: { $0.key.lowercased() == key })?.value.trimmingCharacters(in: .whitespaces),
+                   !v.isEmpty { return v }
+            }
+            return nil
+        }
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let system = field(["trail_syst", "trail_system", "system"])
+        if let own = field(["trail_name", "trailname"]) { return [system, own].compactMap { $0 }.joined(separator: " · ") }
+        if !trimmed.isEmpty && trimmed != label { return trimmed }
+        if !label.isEmpty { return [system, "Trail \(label)"].compactMap { $0 }.joined(separator: " ") }
+        return system ?? "Trail"
     }
 
     /// Standard trail difficulty colors, used when the file doesn't set one.
     static func difficultyColor(_ text: String) -> String? {
         let t = text.lowercased()
-        if t.contains("most difficult") || t.contains("extreme") || t.contains("expert") { return "#D32F2F" }
-        if t.contains("difficult") || t.contains("hard") || t.contains("black") { return "#212121" }
-        if t.contains("moderate") || t.contains("intermediate") || t.contains("blue") { return "#1E63D6" }
-        if t.contains("easy") || t.contains("green") { return "#2E8B3A" }
+        if t.contains("most difficult") || t.contains("extreme") || t.contains("expert") || t.contains("black") { return "#212121" }
+        if t.contains("more difficult") || t.contains("moderate") || t.contains("intermediate") || t.contains("blue") { return "#1E63D6" }
+        if t.contains("difficult") || t.contains("hard") { return "#212121" }
+        if t.contains("easiest") || t.contains("easy") || t.contains("green") { return "#2E8B3A" }
         return nil
     }
 }
@@ -177,17 +194,44 @@ final class KMLParser: NSObject, XMLParserDelegate {
         case "Placemark":
             inPlacemark = false
             if !segments.isEmpty {
+                // ArcGIS exports (like the Hatfield-McCoy KMZ) put the attributes in an HTML table in the description.
+                if let html = details["description"], html.contains("<td") {
+                    for (k, v) in Self.tableFields(html) where details[k] == nil { details[k] = v }
+                    details["description"] = nil
+                }
                 var d = details
                 if !styleURL.isEmpty { d["_styleUrl"] = styleURL }
-                let title = name.isEmpty ? (d.first { $0.key.lowercased().contains("name") }?.value ?? "Trail") : name
+                let label = TrailImporter.label(name: name, details: details)
+                let title = TrailImporter.title(name: name, label: label, details: details)
                 let color = TrailImporter.difficultyColor(([title] + Array(details.values)).joined(separator: " "))
-                trails.append(TrailLine(name: title, label: TrailImporter.label(name: title, details: details),
+                trails.append(TrailLine(name: title, label: label.isEmpty ? title : label,
                                         colorHex: color, segments: segments, details: d))
             }
         default: break
         }
         path.removeLast()
         text = ""
+    }
+
+    /// Reads <td>key</td><td>value</td> pairs. The first cell is a title row when the count is odd.
+    static func tableFields(_ html: String) -> [String: String] {
+        guard let regex = try? NSRegularExpression(pattern: "<td[^>]*>(.*?)</td>", options: [.dotMatchesLineSeparators, .caseInsensitive]) else { return [:] }
+        let ns = html as NSString
+        var cells = regex.matches(in: html, range: NSRange(location: 0, length: ns.length)).map {
+            ns.substring(with: $0.range(at: 1))
+                .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "&nbsp;", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if cells.count % 2 == 1 { cells.removeFirst() }
+        var out: [String: String] = [:]
+        var i = 0
+        while i + 1 < cells.count {
+            if !cells[i].isEmpty { out[cells[i]] = cells[i + 1] }
+            i += 2
+        }
+        return out
     }
 
     private func local(_ name: String) -> String {

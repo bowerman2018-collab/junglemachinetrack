@@ -76,7 +76,7 @@ struct OfflineMapsScreen: View {
                 } header: {
                     Text("Hatfield-McCoy trails")
                 } footer: {
-                    Text("Covers about 17 x 17 miles around each trailhead. Do this on Wi-Fi at home; it takes a while. Tap a trail system to see it on the Map tab.")
+                    Text("Covers every trail in each system plus about 2 miles around it. Do this on Wi-Fi at home; it takes a while. Tap a trail system to see it on the Map tab.")
                 }
 
                 Section {

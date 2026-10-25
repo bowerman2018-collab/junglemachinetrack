@@ -22,6 +22,8 @@ struct TrailMapView: UIViewRepresentable {
         map.setRegion(mapState.region, animated: false)
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "rider")
         map.register(TrailLabelView.self, forAnnotationViewWithReuseIdentifier: "trailLabel")
+        map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "trailhead")
+        map.addAnnotations(TrailheadAnnotation.all)
         context.coordinator.installTiles(on: map, source: settings.tileSource, useInternet: settings.useInternetForMaps)
         return map
     }
@@ -158,6 +160,15 @@ struct TrailMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let th = annotation as? TrailheadAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: "trailhead", for: th) as! MKMarkerAnnotationView
+                view.markerTintColor = .systemBrown
+                view.glyphImage = UIImage(systemName: "flag.fill")
+                view.titleVisibility = .adaptive
+                view.displayPriority = .defaultHigh
+                view.canShowCallout = true
+                return view
+            }
             if let t = annotation as? TrailLabelAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: "trailLabel", for: t)
             }
@@ -223,4 +234,27 @@ final class RiderAnnotation: NSObject, MKAnnotation {
 
 final class RiderTrack: MKPolyline {
     var color: UIColor = .systemRed
+}
+
+/// A Hatfield-McCoy trailhead, always shown so you can find your way back.
+final class TrailheadAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let title: String?
+    let subtitle: String?
+
+    init(coordinate: CLLocationCoordinate2D, title: String, subtitle: String) {
+        self.coordinate = coordinate
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    /// One marker per trailhead (Rockhouse and Braveheart share one).
+    static let all: [TrailheadAnnotation] = {
+        var seen = Set<String>()
+        return TrailSystem.hatfieldMcCoy.compactMap { s in
+            guard seen.insert(s.trailhead).inserted else { return nil }
+            let names = TrailSystem.hatfieldMcCoy.filter { $0.trailhead == s.trailhead }.map(\.name).joined(separator: " / ")
+            return TrailheadAnnotation(coordinate: s.trailheadCoordinate, title: "\(names) Trailhead", subtitle: s.trailhead)
+        }
+    }()
 }
