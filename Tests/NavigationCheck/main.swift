@@ -69,7 +69,10 @@ expect(r2.steps.map(\.title) == ["Trail 73", "Bearwallow Rd"], "uses the road in
 expect(r2.roadMeters > 1000, "road part counted")
 
 easy.useRoads = false
-expect(graph.route(from: home, to: [goal], options: easy) == nil, "no way there without 75 or roads")
+// Without 75 or roads it can't get there: it goes as close as it can and the rest is a straight line.
+let r4 = graph.route(from: home, to: [goal], options: easy)
+expect(r4 != nil && r4!.leadOut > 1000, "ends at the nearest reachable spot, lead-out \(r4?.leadOut ?? -1)")
+expect(r4!.steps.allSatisfy { $0.title != "Trail 75" && $0.kind != .road }, "never uses 75 or roads")
 
 // Starting off-trail draws a lead-in; whole-trail targets pick the nearest bit.
 guard let r3 = graph.route(from: GeoPoint(lat: 37.695, lon: -81.895), to: search.search("75", near: home)[0].targets, options: RouteOptions()) else {

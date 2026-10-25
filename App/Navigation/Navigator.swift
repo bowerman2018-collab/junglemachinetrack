@@ -148,7 +148,13 @@ final class Navigator: ObservableObject {
         }
         if let r = graph.route(from: start, to: destination.targets, options: options) {
             route = r
-            problem = r.leadIn > 1600 ? "You're \(NavSearch.miles(r.leadIn)) from the nearest trail; the dashed line is a straight line, not a trail." : nil
+            if r.leadOut > 300 {
+                problem = "The trails your settings allow don't reach it. The route gets within \(NavSearch.miles(r.leadOut)); the dashed part is a straight line, not a trail."
+            } else if r.leadIn > 1600 {
+                problem = "You're \(NavSearch.miles(r.leadIn)) from the nearest trail; the dashed line is a straight line, not a trail."
+            } else {
+                problem = nil
+            }
         } else {
             route = nil
             problem = graph.snap(start, options: options) == nil
