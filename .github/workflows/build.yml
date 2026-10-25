@@ -13,15 +13,19 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
       - name: Test the APRS decoder
+        id: tests
+        continue-on-error: true
         working-directory: Packages/APRSCore
-        run: swift test
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee ../../test.log || { grep -E "error:|failed|XCTAssert" ../../test.log | head -40 | sed 's/^/::error::/'; exit 1; }
 
       - name: Generate Xcode project
         run: |
@@ -30,6 +34,7 @@ jobs:
 
       - name: Build the app (unsigned; AltStore signs it with your Apple ID)
         run: |
+          set -o pipefail
           xcodebuild build \
             -project TrailTracker.xcodeproj \
             -scheme TrailTracker \
@@ -37,7 +42,17 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build.log | grep -E "error:|warning: |BUILD" || true
+          # Surface compiler errors as annotations so they're readable without the full log.
+          if ! grep -q "BUILD SUCCEEDED" build.log; then
+            grep -E "error:" build.log | sort -u | head -40 | sed 's/^/::error::/'
+            exit 1
+          fi
+
+      - name: Fail if decoder tests failed
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
 
       - name: Package .ipa
         run: |
