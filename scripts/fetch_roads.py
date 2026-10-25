@@ -6,6 +6,7 @@ Road data (c) OpenStreetMap contributors, ODbL.
 """
 import json
 import math
+import os
 import re
 import sys
 import time
@@ -98,6 +99,7 @@ for el in data.get("elements", []):
 
 roads.sort(key=lambda r: (r["n"], r.get("r", "")))
 out = {"source": "(c) OpenStreetMap contributors, ODbL", "fetched": time.strftime("%Y-%m-%d"), "roads": roads}
+os.makedirs("App/Resources", exist_ok=True)
 with open("App/Resources/Roads.json", "w") as f:
     json.dump(out, f, separators=(",", ":"))
 names = {r["n"] or r.get("r") for r in roads}
