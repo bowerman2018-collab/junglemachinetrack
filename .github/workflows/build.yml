@@ -29,8 +29,10 @@ jobs:
 
       - name: Check the trail map importer
         run: |
-          swiftc App/Maps/TrailImport.swift Tests/TrailImportCheck/main.swift -o trail-check
-          ./trail-check Tests/TrailImportCheck/sample.kmz
+          swiftc App/Maps/TrailImport.swift Tests/TrailImportCheck/main.swift -o trail-check > check.log 2>&1 \
+            && ./trail-check Tests/TrailImportCheck/sample.kmz >> check.log 2>&1 \
+            || { grep -v "^$" check.log | head -30 | sed 's/^/::error::/'; exit 1; }
+          cat check.log
 
       - name: Generate Xcode project
         run: |
