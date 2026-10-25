@@ -1,0 +1,38 @@
+name: TrailTracker
+options:
+  bundleIdPrefix: com.trailtracker
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  APRSCore:
+    path: Packages/APRSCore
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  TrailTracker:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: APRSCore
+    scheme: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.trailtracker.app
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Trail Tracker
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [bluetooth-le]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIBackgroundModes: [bluetooth-central]
+        NSBluetoothAlwaysUsageDescription: Trail Tracker connects to your radio over Bluetooth to receive your group's positions.
+        NSLocationWhenInUseUsageDescription: Your location is shown on the map and used to show distance to other riders. It never leaves your phone.

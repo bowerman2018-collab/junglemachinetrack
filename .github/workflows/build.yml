@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Test the APRS decoder
+        working-directory: Packages/APRSCore
+        run: swift test
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build the app (unsigned; AltStore signs it with your Apple ID)
+        run: |
+          xcodebuild build \
+            -project TrailTracker.xcodeproj \
+            -scheme TrailTracker \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/TrailTracker.app Payload/
+          zip -qr TrailTracker.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrailTracker-ipa
+          path: TrailTracker.ipa
+
+      - name: Publish as the "latest" download
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest TrailTracker.ipa \
+            --prerelease \
+            --title "Trail Tracker (latest build)" \
+            --notes "Built from ${GITHUB_SHA::7}. Install with AltStore: see the README."
