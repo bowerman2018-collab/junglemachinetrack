@@ -1,0 +1,28 @@
+name: Fetch road data
+
+# Downloads road names and lines near the trail systems from OpenStreetMap into
+# App/Resources/Roads.json, so "trail + road" search works with no signal.
+on:
+  workflow_dispatch:
+  push:
+    paths: [scripts/fetch_roads.py, .github/workflows/fetch-roads.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download roads
+        run: python3 scripts/fetch_roads.py
+      - name: Save to the branch
+        run: |
+          ls -la App/Resources/Roads.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add App/Resources/Roads.json
+          git diff --cached --quiet && { echo "No change"; exit 0; }
+          git commit -m "Update road data from OpenStreetMap"
+          git push
