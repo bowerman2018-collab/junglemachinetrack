@@ -90,6 +90,8 @@ struct OfflineMapsScreen: View {
                          : "Covers every trail in each system plus about 2 miles around it. Do this on Wi-Fi at home; it takes a while. Tap a trail system to see it on the Map tab.")
                 }
 
+                HomeAreaSection()
+
                 Section {
                     Toggle("Show trail lines", isOn: $settings.showTrailLines)
                     if let source = trails.sourceName {

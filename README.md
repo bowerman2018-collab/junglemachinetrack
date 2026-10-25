@@ -4,7 +4,7 @@ An offline iPhone app for tracking your group on the trail with TIDRADIO TD-H9 r
 Each radio beacons its own GPS position over APRS. The app connects to your radio over
 Bluetooth, decodes everyone it hears, and puts them on a topo map that works with no cell signal.
 
-- **Offline maps:** download USGS topo or satellite maps for an area ahead of time.
+- **Offline maps:** the Hatfield-McCoy trail systems are built in. Offline Maps → **Maps where I live** downloads the area around your home (type your town or use your GPS, pick 5 to 50 miles), and you can download any other area too.
 - **Private:** the app never sends anything to the internet. With "Use internet for maps" off it makes no network connections at all.
 - **Add riders without setup:** anyone whose radio beacons on your frequency shows up automatically. Give them a name and color on the Riders tab.
 - **Demo mode:** fake riders to try everything before the radios arrive (Radio tab).
