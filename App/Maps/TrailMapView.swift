@@ -6,6 +6,7 @@ struct TrailMapView: UIViewRepresentable {
     @ObservedObject var riders: RiderStore
     @ObservedObject var settings: AppSettings
     @ObservedObject var mapState: MapState
+    @ObservedObject var trails: TrailStore
     /// Changes once a minute so marker fading for stale riders updates even when no packets arrive.
     var clock: Date
 
@@ -20,6 +21,7 @@ struct TrailMapView: UIViewRepresentable {
         map.pointOfInterestFilter = .excludingAll
         map.setRegion(mapState.region, animated: false)
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "rider")
+        map.register(TrailLabelView.self, forAnnotationViewWithReuseIdentifier: "trailLabel")
         context.coordinator.installTiles(on: map, source: settings.tileSource, useInternet: settings.useInternetForMaps)
         return map
     }
@@ -32,6 +34,7 @@ struct TrailMapView: UIViewRepresentable {
         }
         c.overlay?.useInternet = settings.useInternetForMaps
 
+        c.syncTrails(on: map, trails: settings.showTrailLines ? trails.trails : [])
         c.syncRiders(on: map, riders: riders.visible, showTracks: settings.showTracks)
 
         if let region = mapState.pendingRegion {
@@ -48,6 +51,12 @@ struct TrailMapView: UIViewRepresentable {
         var staleMinutes = 10
         private var annotations: [String: RiderAnnotation] = [:]
         private var tracks: [String: (line: RiderTrack, count: Int, color: Int)] = [:]
+        private var trailLines: [TrailPolyline] = []
+        private var trailLabels: [TrailLabelAnnotation] = []
+        private var trailsShown: [UUID] = []
+        private var labelsVisible = false
+        /// Trail numbers appear once zoomed in this far (map height in degrees), so they don't pile up.
+        static let labelSpan = 0.12
 
         init(mapState: MapState) { self.mapState = mapState }
 
@@ -97,6 +106,42 @@ struct TrailMapView: UIViewRepresentable {
             }
         }
 
+        func syncTrails(on map: MKMapView, trails: [TrailLine]) {
+            let ids = trails.map(\.id)
+            guard ids != trailsShown else { return }
+            trailsShown = ids
+            map.removeOverlays(trailLines)
+            if labelsVisible { map.removeAnnotations(trailLabels) }
+            trailLines = []
+            trailLabels = []
+            for trail in trails {
+                let color = trail.colorHex.flatMap(UIColor.init(hex:)) ?? .systemBrown
+                for segment in trail.segments {
+                    var coords = segment.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
+                    let line = TrailPolyline(coordinates: &coords, count: coords.count)
+                    line.color = color
+                    trailLines.append(line)
+                    trailLabels.append(TrailLabelAnnotation(coordinate: coords[coords.count / 2], label: trail.label,
+                                                            name: trail.name, color: color))
+                }
+            }
+            // Under the rider trail lines, above the map tiles.
+            if let overlay {
+                for line in trailLines { map.insertOverlay(line, above: overlay) }
+            } else {
+                map.addOverlays(trailLines, level: .aboveLabels)
+            }
+            labelsVisible = false
+            updateTrailLabels(on: map)
+        }
+
+        func updateTrailLabels(on map: MKMapView) {
+            let want = map.region.span.latitudeDelta < Self.labelSpan && !trailLabels.isEmpty
+            guard want != labelsVisible else { return }
+            labelsVisible = want
+            if want { map.addAnnotations(trailLabels) } else { map.removeAnnotations(trailLabels) }
+        }
+
         private func isStale(_ rider: Rider) -> Bool {
             guard let heard = rider.lastHeard else { return true }
             return Date().timeIntervalSince(heard) > Double(staleMinutes * 60)
@@ -113,6 +158,9 @@ struct TrailMapView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if let t = annotation as? TrailLabelAnnotation {
+                return mapView.dequeueReusableAnnotationView(withIdentifier: "trailLabel", for: t)
+            }
             guard let a = annotation as? RiderAnnotation else { return nil }
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: "rider", for: a) as! MKMarkerAnnotationView
             style(view, a)
@@ -121,6 +169,14 @@ struct TrailMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+            if let trail = overlay as? TrailPolyline {
+                let r = MKPolylineRenderer(polyline: trail)
+                r.strokeColor = trail.color
+                r.lineWidth = 3
+                r.lineCap = .round
+                r.lineJoin = .round
+                return r
+            }
             if let line = overlay as? RiderTrack {
                 let r = MKPolylineRenderer(polyline: line)
                 r.strokeColor = line.color.withAlphaComponent(0.8)
@@ -134,6 +190,7 @@ struct TrailMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             mapState.region = mapView.region
+            updateTrailLabels(on: mapView)
         }
 
         func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {

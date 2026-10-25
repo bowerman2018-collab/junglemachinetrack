@@ -10,6 +10,8 @@ final class AppSettings: ObservableObject {
     /// Riders not heard for this many minutes are drawn faded.
     @Published var staleMinutes: Int { didSet { defaults.set(staleMinutes, forKey: "staleMinutes") } }
     @Published var showTracks: Bool { didSet { defaults.set(showTracks, forKey: "showTracks") } }
+    /// Imported trail lines (e.g. Hatfield-McCoy trails with numbers).
+    @Published var showTrailLines: Bool { didSet { defaults.set(showTrailLines, forKey: "showTrailLines") } }
 
     private let defaults = UserDefaults.standard
 
@@ -18,6 +20,7 @@ final class AppSettings: ObservableObject {
         useInternetForMaps = defaults.object(forKey: "useInternetForMaps") as? Bool ?? true
         staleMinutes = defaults.object(forKey: "staleMinutes") as? Int ?? 10
         showTracks = defaults.object(forKey: "showTracks") as? Bool ?? true
+        showTrailLines = defaults.object(forKey: "showTrailLines") as? Bool ?? true
     }
 
     var tileSource: TileSource { TileSource.all.first { $0.id == tileSourceID } ?? .usgsTopo }

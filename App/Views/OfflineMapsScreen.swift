@@ -1,10 +1,13 @@
 import SwiftUI
 import MapKit
+import UniformTypeIdentifiers
 
 struct OfflineMapsScreen: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var mapState: MapState
     @EnvironmentObject var downloader: TileDownloader
+    @EnvironmentObject var trails: TrailStore
+    @State private var importing = false
     @State private var minZoom = 10
     @State private var maxZoom = 15
     @State private var areaName = ""
@@ -77,6 +80,28 @@ struct OfflineMapsScreen: View {
                 }
 
                 Section {
+                    Toggle("Show trail lines", isOn: $settings.showTrailLines)
+                    if let source = trails.sourceName {
+                        LabeledContent("Loaded", value: "\(trails.trails.count) trails")
+                        Text(source).font(.caption).foregroundStyle(.secondary)
+                        Button("See all trails on the map") {
+                            if let r = trails.boundingRegion { mapState.pendingRegion = r }
+                        }
+                    }
+                    Button(trails.sourceName == nil ? "Import trail map…" : "Replace trail map…") { importing = true }
+                    if trails.sourceName != nil {
+                        Button("Remove trail map", role: .destructive) { trails.removeAll() }
+                    }
+                    if let error = trails.lastError {
+                        Text(error).font(.caption).foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("Trail lines and numbers")
+                } footer: {
+                    Text("Import the official Hatfield-McCoy Google Earth (KMZ) file from data.trailsheaven.com, or any KML or GPX file. Trails are drawn in their colors, and trail numbers show when you zoom in. Works offline once imported.")
+                }
+
+                Section {
                     TextField("Area name (e.g. Rockhouse trails)", text: $areaName)
                     Stepper("Least detail: zoom \(minZoom)", value: $minZoom, in: 6...maxZoom)
                     Stepper("Most detail: zoom \(maxZoom)", value: $maxZoom, in: minZoom...settings.tileSource.maxZoom)
@@ -116,6 +141,9 @@ struct OfflineMapsScreen: View {
                 }
             }
             .navigationTitle("Offline Maps")
+            .fileImporter(isPresented: $importing, allowedContentTypes: Self.trailFileTypes) { result in
+                if case .success(let url) = result { trails.importFile(url) }
+            }
             .onAppear {
                 region = mapState.region
                 downloader.refreshSize()
@@ -126,6 +154,11 @@ struct OfflineMapsScreen: View {
             }
         }
     }
+
+    static let trailFileTypes: [UTType] = {
+        let types = ["kmz", "kml", "gpx"].compactMap { UTType(filenameExtension: $0) }
+        return types.isEmpty ? [.data] : types + [.xml]
+    }()
 
     private var hmSources: [TileSource] {
         (hmTopo ? [TileSource.usgsTopo] : []) + (hmSatellite ? [TileSource.usgsImagery] : [])

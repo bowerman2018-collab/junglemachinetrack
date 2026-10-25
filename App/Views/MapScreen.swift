@@ -8,12 +8,13 @@ struct MapScreen: View {
     @EnvironmentObject var radio: RadioLink
     @EnvironmentObject var demo: DemoFeed
     @EnvironmentObject var location: LocationTracker
+    @EnvironmentObject var trails: TrailStore
     @State private var clock = Date()
     private let minuteTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            TrailMapView(riders: riders, settings: settings, mapState: mapState, clock: clock)
+            TrailMapView(riders: riders, settings: settings, mapState: mapState, trails: trails, clock: clock)
                 .ignoresSafeArea(edges: .top)
 
             VStack(spacing: 10) {
