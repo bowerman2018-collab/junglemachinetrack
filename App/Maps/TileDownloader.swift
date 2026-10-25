@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import UIKit
 
 /// An area the user saved for offline use. Only a record for the list; the tiles themselves live in TileCache.
 struct SavedArea: Codable, Identifiable {
@@ -30,6 +31,32 @@ final class TileDownloader: ObservableObject {
     @Published private(set) var failed = 0
     @Published private(set) var areas: [SavedArea] = []
     @Published private(set) var bytesOnDisk: Int64 = 0
+    /// What's downloading now, e.g. "Hatfield-McCoy · Topo (USGS)".
+    @Published private(set) var currentJobName = ""
+    /// Jobs waiting after the current one.
+    @Published private(set) var queued: [Job] = []
+
+    /// One download: one map style, one or more named areas. Tiles shared by overlapping areas are fetched once.
+    struct Job: Identifiable {
+        let id = UUID()
+        let name: String
+        let areas: [(name: String, region: MKCoordinateRegion)]
+        let zooms: ClosedRange<Int>
+        let source: TileSource
+
+        var keys: [TileKey] {
+            var seen = Set<TileKey>()
+            var out: [TileKey] = []
+            for area in areas {
+                for z in zooms {
+                    for key in TileMath.tiles(in: area.region, zoom: z) where seen.insert(key).inserted {
+                        out.append(key)
+                    }
+                }
+            }
+            return out
+        }
+    }
 
     /// Rough average size of one USGS tile, for the estimate shown before downloading.
     static let averageTileBytes = 18_000
@@ -51,9 +78,46 @@ final class TileDownloader: ObservableObject {
     var progress: Double { total == 0 ? 0 : Double(done) / Double(total) }
 
     func download(name: String, region: MKCoordinateRegion, zooms: ClosedRange<Int>, source: TileSource) {
-        guard !isRunning else { return }
-        let keys = zooms.flatMap { TileMath.tiles(in: region, zoom: $0) }
+        enqueue(Job(name: name, areas: [(name: name, region: region)], zooms: zooms, source: source))
+    }
+
+    /// Queues every Hatfield-McCoy trail system, one job per map style.
+    func downloadTrailSystems(_ systems: [TrailSystem], sources: [TileSource], maxZoom: Int) {
+        for source in sources {
+            enqueue(Job(name: "Hatfield-McCoy · \(source.name)",
+                        areas: systems.map { (name: "\($0.name) trails", region: $0.region) },
+                        zooms: 10...min(maxZoom, source.maxZoom), source: source))
+        }
+    }
+
+    /// Tiles a set of trail-system downloads would fetch, before skipping ones already on the phone.
+    static func tileCount(_ systems: [TrailSystem], sources: [TileSource], maxZoom: Int) -> Int {
+        sources.reduce(0) { total, source in
+            total + Job(name: "", areas: systems.map { (name: $0.name, region: $0.region) },
+                        zooms: 10...min(maxZoom, source.maxZoom), source: source).keys.count
+        }
+    }
+
+    private func enqueue(_ job: Job) {
+        queued.append(job)
+        if !isRunning { startNext() }
+    }
+
+    private func startNext() {
+        guard !queued.isEmpty else {
+            isRunning = false
+            currentJobName = ""
+            UIApplication.shared.isIdleTimerDisabled = false
+            refreshSize()
+            return
+        }
+        let job = queued.removeFirst()
+        let keys = job.keys
+        let source = job.source
         isRunning = true
+        // Downloads only run while the app is open, so keep the screen from locking.
+        UIApplication.shared.isIdleTimerDisabled = true
+        currentJobName = job.name
         done = 0
         failed = 0
         total = keys.count
@@ -93,16 +157,21 @@ final class TileDownloader: ObservableObject {
                 }
             }
             guard let self else { return }
-            if !Task.isCancelled {
-                self.areas.insert(SavedArea(name: name, sourceID: source.id,
-                                            centerLat: region.center.latitude, centerLon: region.center.longitude,
-                                            spanLat: region.span.latitudeDelta, spanLon: region.span.longitudeDelta,
-                                            minZoom: zooms.lowerBound, maxZoom: zooms.upperBound,
-                                            tileCount: keys.count, date: Date()), at: 0)
+            if Task.isCancelled {
+                self.queued.removeAll()
+            } else {
+                for area in job.areas {
+                    let r = area.region
+                    self.areas.removeAll { $0.name == area.name && $0.sourceID == source.id }
+                    self.areas.insert(SavedArea(name: area.name, sourceID: source.id,
+                                                centerLat: r.center.latitude, centerLon: r.center.longitude,
+                                                spanLat: r.span.latitudeDelta, spanLon: r.span.longitudeDelta,
+                                                minZoom: job.zooms.lowerBound, maxZoom: job.zooms.upperBound,
+                                                tileCount: job.areas.count == 1 ? keys.count : 0, date: Date()), at: 0)
+                }
                 self.saveAreas()
             }
-            self.isRunning = false
-            self.refreshSize()
+            self.startNext()
         }
     }
 
@@ -111,7 +180,9 @@ final class TileDownloader: ObservableObject {
         if !ok { failed += 1 }
     }
 
+    /// Stops the current download and anything queued. Tiles already saved stay; starting again skips them.
     func cancel() {
+        queued.removeAll()
         task?.cancel()
     }
 
