@@ -7,6 +7,11 @@ struct TrailMapView: UIViewRepresentable {
     @ObservedObject var settings: AppSettings
     @ObservedObject var mapState: MapState
     @ObservedObject var trails: TrailStore
+    @ObservedObject var nav: Navigator
+    /// Long-press on the map, for "route here".
+    var onLongPress: (CLLocationCoordinate2D) -> Void = { _ in }
+    /// The arrow button in a rider's bubble.
+    var onRouteToRider: (Rider) -> Void = { _ in }
     /// Changes once a minute so marker fading for stale riders updates even when no packets arrive.
     var clock: Date
 
@@ -24,6 +29,10 @@ struct TrailMapView: UIViewRepresentable {
         map.register(TrailLabelView.self, forAnnotationViewWithReuseIdentifier: "trailLabel")
         map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "trailhead")
         map.addAnnotations(TrailheadAnnotation.all)
+        map.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: "routeEnd")
+        let press = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.longPressed(_:)))
+        press.minimumPressDuration = 0.5
+        map.addGestureRecognizer(press)
         context.coordinator.installTiles(on: map, source: settings.tileSource, useInternet: settings.useInternetForMaps)
         return map
     }
@@ -38,6 +47,9 @@ struct TrailMapView: UIViewRepresentable {
 
         c.syncTrails(on: map, trails: settings.showTrailLines ? trails.trails : [])
         c.syncRiders(on: map, riders: riders.visible, showTracks: settings.showTracks)
+        c.onLongPress = onLongPress
+        c.onRouteToRider = onRouteToRider
+        c.syncRoute(on: map, nav: nav)
 
         if let region = mapState.pendingRegion {
             map.setRegion(region, animated: true)
@@ -51,6 +63,11 @@ struct TrailMapView: UIViewRepresentable {
         let mapState: MapState
         var overlay: CachedTileOverlay?
         var staleMinutes = 10
+        var onLongPress: (CLLocationCoordinate2D) -> Void = { _ in }
+        var onRouteToRider: (Rider) -> Void = { _ in }
+        private var routeShown = -1
+        private var routeOverlays: [MKOverlay] = []
+        private var routeMarks: [RouteEndAnnotation] = []
         private var annotations: [String: RiderAnnotation] = [:]
         private var tracks: [String: (line: RiderTrack, count: Int, color: Int)] = [:]
         private var trailLines: [TrailPolyline] = []
@@ -144,6 +161,49 @@ struct TrailMapView: UIViewRepresentable {
             if want { map.addAnnotations(trailLabels) } else { map.removeAnnotations(trailLabels) }
         }
 
+        @objc func longPressed(_ g: UILongPressGestureRecognizer) {
+            guard g.state == .began, let map = g.view as? MKMapView else { return }
+            onLongPress(map.convert(g.location(in: map), toCoordinateFrom: map))
+        }
+
+        /// The planned route: a bold line on top of the trails, dashed where it leaves them, and pins at the ends.
+        func syncRoute(on map: MKMapView, nav: Navigator) {
+            guard nav.routeVersion != routeShown else { return }
+            routeShown = nav.routeVersion
+            map.removeOverlays(routeOverlays)
+            map.removeAnnotations(routeMarks)
+            routeOverlays = []
+            routeMarks = []
+            if let route = nav.route {
+                let n = route.points.count
+                var i0 = 0, i1 = n - 1
+                if route.leadIn > 0 { i0 = 1 }
+                if route.leadOut > 0 { i1 = n - 2 }
+                func line(_ a: Int, _ b: Int, dashed: Bool) {
+                    guard b > a else { return }
+                    var coords = route.points[a...b].map(\.coordinate)
+                    let l = RouteLine(coordinates: &coords, count: coords.count)
+                    l.dashed = dashed
+                    routeOverlays.append(l)
+                }
+                line(0, i0, dashed: true)
+                line(i0, i1, dashed: false)
+                line(i1, n - 1, dashed: true)
+                map.addOverlays(routeOverlays, level: .aboveLabels)
+            }
+            if let place = nav.destination {
+                routeMarks.append(RouteEndAnnotation(coordinate: place.center.coordinate, title: place.title, isStart: false))
+            }
+            if let start = nav.customStart {
+                routeMarks.append(RouteEndAnnotation(coordinate: start.coordinate, title: "Start", isStart: true))
+            }
+            map.addAnnotations(routeMarks)
+        }
+
+        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+            if let a = view.annotation as? RiderAnnotation { onRouteToRider(a.rider) }
+        }
+
         private func isStale(_ rider: Rider) -> Bool {
             guard let heard = rider.lastHeard else { return true }
             return Date().timeIntervalSince(heard) > Double(staleMinutes * 60)
@@ -157,6 +217,11 @@ struct TrailMapView: UIViewRepresentable {
             view.displayPriority = .required
             view.alpha = a.isStale ? 0.45 : 1
             view.canShowCallout = true
+            let go = UIButton(type: .system)
+            go.setImage(UIImage(systemName: "arrow.triangle.turn.up.right.circle.fill"), for: .normal)
+            go.frame = CGRect(x: 0, y: 0, width: 32, height: 32)
+            go.accessibilityLabel = "Route to \(a.rider.displayName)"
+            view.rightCalloutAccessoryView = go
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
@@ -166,6 +231,14 @@ struct TrailMapView: UIViewRepresentable {
                 view.glyphImage = UIImage(systemName: "flag.fill")
                 view.titleVisibility = .adaptive
                 view.displayPriority = .defaultHigh
+                view.canShowCallout = true
+                return view
+            }
+            if let end = annotation as? RouteEndAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: "routeEnd", for: end) as! MKMarkerAnnotationView
+                view.markerTintColor = end.isStart ? .systemGreen : .systemRed
+                view.glyphImage = UIImage(systemName: end.isStart ? "figure.wave" : "mappin")
+                view.displayPriority = .required
                 view.canShowCallout = true
                 return view
             }
@@ -186,6 +259,15 @@ struct TrailMapView: UIViewRepresentable {
                 r.lineWidth = 3
                 r.lineCap = .round
                 r.lineJoin = .round
+                return r
+            }
+            if let route = overlay as? RouteLine {
+                let r = MKPolylineRenderer(polyline: route)
+                r.strokeColor = UIColor.systemPurple.withAlphaComponent(0.9)
+                r.lineWidth = route.dashed ? 4 : 7
+                r.lineCap = .round
+                r.lineJoin = .round
+                if route.dashed { r.lineDashPattern = [6, 8] }
                 return r
             }
             if let line = overlay as? RiderTrack {
@@ -229,6 +311,24 @@ final class RiderAnnotation: NSObject, MKAnnotation {
         guard let heard = rider.lastHeard else { return rider.callsign }
         let ago = RelativeDateTimeFormatter().localizedString(for: heard, relativeTo: Date())
         return "\(rider.callsign) · \(ago)"
+    }
+}
+
+/// The planned route line.
+final class RouteLine: MKPolyline {
+    var dashed = false
+}
+
+/// The destination pin, and the start pin when you picked one on the map.
+final class RouteEndAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let title: String?
+    let isStart: Bool
+
+    init(coordinate: CLLocationCoordinate2D, title: String, isStart: Bool) {
+        self.coordinate = coordinate
+        self.title = title
+        self.isStart = isStart
     }
 }
 

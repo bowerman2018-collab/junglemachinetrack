@@ -34,6 +34,13 @@ jobs:
             || { grep -v "^$" check.log | head -30 | sed 's/^/::error::/'; exit 1; }
           cat check.log
 
+      - name: Check the route finder and trail search
+        run: |
+          swiftc App/Navigation/TrailGraph.swift App/Navigation/NavSearch.swift Tests/NavigationCheck/main.swift -o nav-check > nav.log 2>&1 \
+            && ./nav-check >> nav.log 2>&1 \
+            || { grep -v "^$" nav.log | head -30 | sed 's/^/::error::/'; exit 1; }
+          cat nav.log
+
       - name: Generate Xcode project
         run: |
           brew install xcodegen
