@@ -27,6 +27,11 @@ jobs:
           set -o pipefail
           swift test 2>&1 | tee ../../test.log || { grep -E "error:|failed|XCTAssert" ../../test.log | head -40 | sed 's/^/::error::/'; exit 1; }
 
+      - name: Check the trail map importer
+        run: |
+          swiftc App/Maps/TrailImport.swift Tests/TrailImportCheck/main.swift -o trail-check
+          ./trail-check Tests/TrailImportCheck/sample.kmz
+
       - name: Generate Xcode project
         run: |
           brew install xcodegen
