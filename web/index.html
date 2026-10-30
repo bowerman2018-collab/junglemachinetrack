@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trail Tracker</title>
+<meta name="description" content="Offline group tracker for TIDRADIO TD-H9 radios, with trail maps and navigation.">
+<meta name="theme-color" content="#c2410c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <main class="mapwrap">
+    <div id="map" aria-label="Map"></div>
+    <div class="brand"><h1>Trail Tracker</h1><span id="status" class="status"><i class="dot"></i><span id="status-text">Starting…</span></span></div>
+    <div class="styles" role="radiogroup" aria-label="Map style">
+      <button data-style="usgs-topo" role="radio" aria-checked="true">Topo</button>
+      <button data-style="usgs-imagery" role="radio" aria-checked="false">Satellite</button>
+    </div>
+    <div class="mapbtns">
+      <button id="btn-fit" title="Show everyone">Show everyone</button>
+      <button id="btn-locate" title="Show where this computer is">My location</button>
+    </div>
+    <div id="offline-banner" class="banner" hidden>Offline: showing saved maps only</div>
+    <div id="ctxmenu" class="ctxmenu" hidden role="menu">
+      <button data-act="from" role="menuitem">Route from here</button>
+      <button data-act="to" role="menuitem">Route to here</button>
+      <button data-act="home" role="menuitem">Save maps around here…</button>
+      <button data-act="copy" role="menuitem">Copy coordinates</button>
+    </div>
+  </main>
+
+  <aside>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="riders" aria-selected="true">Riders</button>
+      <button class="tab" role="tab" data-tab="maps" aria-selected="false">Maps</button>
+      <button class="tab" role="tab" data-tab="route" aria-selected="false">Navigate</button>
+      <button class="tab" role="tab" data-tab="radio" aria-selected="false">Radio</button>
+    </nav>
+
+    <!-- Riders -->
+    <section class="panel" id="panel-riders">
+      <div class="section">
+        <h2>Riders <span id="rider-count" class="count">0</span></h2>
+        <div id="riders" class="riders"></div>
+        <p id="riders-empty" class="note">No one heard yet. Riders show up here by themselves when their radio beacons on your frequency. To try it now, turn on <b>Demo riders</b> on the Radio tab.</p>
+        <div id="rider-editor"></div>
+        <div class="row">
+          <button class="btn" id="btn-tracks">Hide trail lines</button>
+          <button class="btn" id="btn-clear-tracks">Clear trail lines</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Maps -->
+    <section class="panel" id="panel-maps" hidden>
+      <div class="section">
+        <label class="opt"><span><b>Use internet for maps</b><br><small>Off: only saved maps show, and the app makes no connections at all.</small></span><input type="checkbox" id="o-net"></label>
+      </div>
+
+      <div class="section">
+        <h2>Download settings</h2>
+        <div class="opts">
+          <label class="opt">Topo map <input type="checkbox" id="o-topo" checked></label>
+          <label class="opt">Satellite map <input type="checkbox" id="o-sat"></label>
+          <label class="opt">Detail
+            <select id="o-zoom"><option value="14">Less (zoom 14)</option><option value="15" selected>Standard (zoom 15)</option><option value="16">Most (zoom 16)</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Maps where I live</h2>
+        <form id="home-form" class="searchrow">
+          <input id="home-q" type="search" placeholder="Town, ZIP or address" aria-label="Town, ZIP or address" autocomplete="off">
+          <button class="btn" type="submit">Find</button>
+        </form>
+        <div class="row">
+          <button class="btn" id="home-gps" type="button">Use this computer's location</button>
+          <button class="btn" id="home-center" type="button">Use the middle of the map</button>
+        </div>
+        <div id="home-results" class="results"></div>
+        <div id="home-picked" hidden>
+          <p class="picked"><b id="home-name"></b></p>
+          <label class="opt">How far around it
+            <select id="home-miles"><option value="5">5 miles</option><option value="10" selected>10 miles</option><option value="25">25 miles</option><option value="50">50 miles</option></select>
+          </label>
+          <div class="opt"><span>Size</span><span class="size" id="home-size"></span></div>
+          <button class="btn primary" id="home-go">Download my area</button>
+        </div>
+        <p class="note">Searching sends what you type to OpenStreetMap to find it. Your home is saved only on this computer.</p>
+      </div>
+
+      <div class="section">
+        <h2>Hatfield-McCoy trails</h2>
+        <div class="opt"><span>Size</span><span class="size" id="hmt-size"></span></div>
+        <button class="btn primary" id="hmt-go">Download all 13 trail systems</button>
+        <div id="systems" class="systems"></div>
+      </div>
+
+      <div class="section" id="progress" hidden>
+        <div class="opt"><span id="p-job"></span><span class="size" id="p-count"></span></div>
+        <div class="bar"><i id="p-bar"></i></div>
+        <div class="row"><button class="btn" id="p-cancel">Stop</button></div>
+      </div>
+
+      <div class="section">
+        <h2>Saved maps</h2>
+        <div id="areas" class="areas"></div>
+        <p class="note" id="storage"></p>
+        <button class="btn danger" id="btn-clear-maps">Delete all saved maps</button>
+      </div>
+
+      <div class="section">
+        <h2>Trail lines</h2>
+        <p class="note" id="trail-source">No trail map imported.</p>
+        <div class="row">
+          <label class="btn primary filebtn">Import trail map…<input type="file" id="trail-file" accept=".kmz,.kml,.gpx,.zip"></label>
+          <button class="btn" id="trail-remove" hidden>Remove</button>
+        </div>
+        <p class="note">Use the official Hatfield-McCoy KMZ (Mastertrailsystemmap…kmz), or any KML/GPX. Its trails are drawn in their difficulty colors and used for navigation.</p>
+      </div>
+    </section>
+
+    <!-- Navigate -->
+    <section class="panel" id="panel-route" hidden>
+      <div class="section">
+        <h2>Find a trail</h2>
+        <form id="find-form" class="searchrow">
+          <input id="find-q" type="search" placeholder="73, Bearwallow 73, or 73 &amp; 12" aria-label="Trail number, name or junction" autocomplete="off">
+          <button class="btn" type="submit">Find</button>
+        </form>
+        <div id="find-results" class="results"></div>
+      </div>
+      <div class="section">
+        <h2>Route</h2>
+        <p class="note">Right-click the map (or press and hold) and pick <b>Route from here</b> and <b>Route to here</b>. Routes follow the imported trail lines.</p>
+        <div class="endpoints">
+          <div><span class="tag from">A</span> <span id="r-from">Not set</span></div>
+          <div><span class="tag to">B</span> <span id="r-to">Not set</span></div>
+        </div>
+        <div class="opts">
+          <label class="opt">Avoid single track (dirt bikes only) <input type="checkbox" id="r-single" checked></label>
+          <label class="opt">Avoid most difficult trails <input type="checkbox" id="r-hard"></label>
+        </div>
+        <div class="row"><button class="btn" id="r-swap">Swap</button><button class="btn" id="r-clear">Clear route</button></div>
+        <div id="r-result"></div>
+      </div>
+    </section>
+
+    <!-- Radio -->
+    <section class="panel" id="panel-radio" hidden>
+      <div class="section">
+        <label class="opt"><span><b>Demo riders</b><br><small>Fake radios on Rockhouse trails, to try everything before the radios arrive.</small></span><input type="checkbox" id="demo"></label>
+      </div>
+      <div class="section">
+        <h2>Connect the radio</h2>
+        <p class="note" id="radio-state">Not connected</p>
+        <div class="row">
+          <button class="btn primary" id="bt-connect">Bluetooth…</button>
+          <button class="btn" id="serial-connect">COM port…</button>
+          <button class="btn" id="radio-disconnect" hidden>Disconnect</button>
+        </div>
+        <details>
+          <summary>More options</summary>
+          <div class="opts">
+            <label class="opt">Show every Bluetooth device <input type="checkbox" id="bt-all"></label>
+            <label class="opt">Extra service ID <input id="bt-extra" placeholder="e.g. 0000fff0-…" spellcheck="false"></label>
+            <label class="opt">COM port speed
+              <select id="serial-baud"><option>1200</option><option selected>9600</option><option>19200</option><option>38400</option><option>57600</option><option>115200</option></select>
+            </label>
+          </div>
+        </details>
+        <p class="note" id="radio-support"></p>
+      </div>
+      <div class="section" id="channels-section" hidden>
+        <h2>What the radio offers</h2>
+        <div id="channels" class="channels"></div>
+      </div>
+      <div class="section log">
+        <h2>Raw data log <button class="link" id="log-copy">Copy</button></h2>
+        <ol id="log"></ol>
+      </div>
+    </section>
+  </aside>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
