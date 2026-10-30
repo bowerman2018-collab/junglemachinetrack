@@ -4,7 +4,7 @@ An offline iPhone app for tracking your group on the trail with TIDRADIO TD-H9 r
 Each radio beacons its own GPS position over APRS. The app connects to your radio over
 Bluetooth, decodes everyone it hears, and puts them on a topo map that works with no cell signal.
 
-- **Offline maps:** download USGS topo or satellite maps for an area ahead of time.
+- **Offline maps:** the Hatfield-McCoy trail systems are built in. Offline Maps → **Maps where I live** downloads the area around your home (type your town or use your GPS, pick 5 to 50 miles), and you can download any other area too.
 - **Private:** the app never sends anything to the internet. With "Use internet for maps" off it makes no network connections at all.
 - **Add riders without setup:** anyone whose radio beacons on your frequency shows up automatically. Give them a name and color on the Riders tab.
 - **Demo mode:** fake riders to try everything before the radios arrive (Radio tab).
@@ -51,12 +51,14 @@ Code: `web/` (no build step). Checks: `node web/test/check.mjs`. Published by `.
 
 ## Radio setup (both radios)
 
-1. **Same APRS frequency on every radio.** Pick a quiet simplex frequency instead of 144.390 so internet gateways don't pick up your beacons and post them publicly.
-2. **Callsign plus a different SSID** on each radio, e.g. `KD8ABC-7` and `KD8XYZ-9`.
-3. **GNSS on, Timed Beacon on**, every 30 to 60 seconds. PTT beacon off.
-4. **No digipeating:** empty path, or `NOGATE` if the radio allows it.
-5. **Bluetooth on** in the radio's menu, and close the ODmaster app (the radio allows one connection at a time).
-6. In the app: Radio tab → **Find my radio** → tap it. After that it reconnects on its own.
+Menu names below are from the TD-H9 Menu Guide.
+
+1. **Frequency (APRS → Advanced Set):** pick line A or B for APRS, set that line to the same quiet simplex frequency on every radio (not 144.390, so internet gateways never hear you), and set RX and TX to that line.
+2. **Callsign (APRS):** your callsign plus a different SSID on each radio, e.g. `KD8ABC-7` and `KD8XYZ-9`.
+3. **Position:** GNSS → GPS on. Beacon Set → Site Type **GPS**, Beacon Mode **Timed**, interval **0060** (60 seconds), PTT Linkage **off**. MIC-E on or off both work.
+4. **No digipeating:** Beacon Set → Route 1 and Route 2 counts **0**, and Relay Set (digipeater) **off**.
+5. **Bluetooth:** on in the radio's menu, BT Mode **Receiver**, and close the ODmaster app (the radio allows one connection at a time). Don't pair it in iPhone Settings.
+6. In the app: Radio tab → **Find my radio** → tap the entry ending in **(BLE)**, e.g. `TD-H9xxxx(BLE)`. After that it reconnects on its own.
 
 Note: anyone nearby listening on that exact frequency can still hear the beacons (encryption
 isn't allowed on ham bands), but nothing gets posted online.

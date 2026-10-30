@@ -11,6 +11,7 @@ struct TrailTrackerApp: App {
     @StateObject private var location = LocationTracker()
     @StateObject private var downloader = TileDownloader()
     @StateObject private var trails = TrailStore()
+    @StateObject private var nav = Navigator()
 
     var body: some Scene {
         WindowGroup {
@@ -23,6 +24,7 @@ struct TrailTrackerApp: App {
                 .environmentObject(location)
                 .environmentObject(downloader)
                 .environmentObject(trails)
+                .environmentObject(nav)
                 .onAppear(perform: wire)
         }
     }

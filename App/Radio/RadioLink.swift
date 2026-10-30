@@ -236,8 +236,10 @@ extension RadioLink: CBCentralManagerDelegate {
         } else {
             found.append(item)
         }
-        // Likely radios first, then by signal strength.
+        // The TD-H9's Bluetooth LE entry ("TD-H9xxxx(BLE)") first, then other likely radios, then by signal strength.
         found.sort { a, b in
+            let ab = a.name.uppercased().contains("(BLE)"), bb = b.name.uppercased().contains("(BLE)")
+            if ab != bb { return ab }
             let ar = Self.looksLikeRadio(a.name), br = Self.looksLikeRadio(b.name)
             return ar != br ? ar : a.rssi > b.rssi
         }
