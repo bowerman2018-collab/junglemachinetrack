@@ -544,7 +544,7 @@ $("serial-connect").onclick = async () => {
 };
 $("radio-disconnect").onclick = () => radio.disconnect();
 $("radio-support").textContent = RadioLink.bluetoothAvailable
-  ? "Turn the radio's Bluetooth on and close the ODmaster app first (the radio allows one connection at a time)."
+  ? "On the radio: Bluetooth on, BT Mode Receiver, and close the ODmaster app (one connection at a time). Bluetooth… picks the name ending in (BLE). COM port… is for the plain TD-H9 name after pairing it in Windows Settings."
   : "Bluetooth and COM ports work in Microsoft Edge or Google Chrome. Open Trail Tracker in Edge to connect a radio.";
 
 // ---------------------------------------------------------------- Offline maps

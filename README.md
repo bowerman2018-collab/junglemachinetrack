@@ -44,8 +44,10 @@ It runs in Microsoft Edge (or Chrome) and installs like a normal app:
 Once maps are saved it works with no internet. Turn off **Use internet for maps** and it makes no connections at all.
 Saved maps and settings stay in Edge on that computer; nothing is uploaded.
 
-Radio: **Bluetooth…** connects to the radio over Bluetooth (Edge/Chrome), and **COM port…** reads a radio or TNC that
-Windows shows as a COM port. Like the iPhone app, it shows what the radio sends in the raw log until the H9's format is confirmed.
+Radio (set it up as in **Radio setup** below first): the H9 shows two Bluetooth names. **Bluetooth…** connects to the
+one ending in **(BLE)**, e.g. `TD-H9xxxx(BLE)`, with no pairing. Or pair the plain `TD-H9xxxx` in Windows Settings → Bluetooth;
+if Windows gives it a COM port, **COM port…** reads it. Like the iPhone app, it shows what the radio sends in the raw log
+until the H9's data format is confirmed.
 
 Code: `web/` (no build step). Checks: `node web/test/check.mjs`. Published by `.github/workflows/web.yml`.
 
